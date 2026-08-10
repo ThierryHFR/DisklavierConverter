@@ -45,6 +45,14 @@ To create a Windows installer, open `DisklavierConverter.iss` with Inno Setup af
 The program reads the right WAV channel, where Yamaha normally stores Analog-MIDI data.
 Run the program with `-h` to see the advanced options.
 
+## Yamaha templates
+
+`yamaha_templates.bin` is the demodulator's calibration data. It contains 16 reference waveforms, each made of 2,240 signed 16-bit PCM samples, representing the phase states of the Yamaha control carrier.
+
+The converter compares short blocks from the WAV right channel with these reference waveforms to recover the transmitted phase symbols and reconstruct MIDI events. The file is about 70 KB and contains no music or MIDI data.
+
+The included template was calibrated for the Yamaha ENSPIRE/Disklavier signal path used during development. Other models, encoders, or processing chains may require a different template.
+
 ## License
 
 This project is distributed under the GNU General Public License v3 or later. See [LICENSE](LICENSE).
