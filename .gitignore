@@ -1,0 +1,17 @@
+__pycache__/
+*.py[cod]
+.venv/
+build/
+dist/
+*.spec
+*.wav
+*.mid
+*.bin
+*.tsv
+*.trace
+*.txt
+!LICENSE
+!README.md
+!WINDOWS_BUILD.md
+!requirements-windows.txt
+!requirements.txt
