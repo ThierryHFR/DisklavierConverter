@@ -1,52 +1,52 @@
 # Disklavier Converter
 
-Convertit un WAV Yamaha Disklavier / ENSPIRE contenant un flux Analog-MIDI en fichier MIDI.
+Converts Yamaha Disklavier / ENSPIRE WAV files containing an Analog-MIDI control stream into standard MIDI files.
 
-## Compilation
+## Building
 
-Installer Python 3.11+ puis exécuter le script correspondant dans ce dossier.
+Install Python 3.11 or newer, then run the script for your operating system from this directory.
 
-Windows :
+Windows:
 
 ```powershell
 Set-ExecutionPolicy -Scope Process Bypass
 .\build_windows.ps1
 ```
 
-Le résultat est `dist\DisklavierConverter.exe`.
+The executable is created at `dist\DisklavierConverter.exe`.
 
-Linux :
+Linux:
 
 ```bash
 chmod +x build_linux.sh
 ./build_linux.sh
 ```
 
-macOS :
+macOS:
 
 ```bash
 chmod +x build_macos.sh
 ./build_macos.sh
 ```
 
-Le résultat Linux/macOS est `dist/DisklavierConverter`.
+The Linux/macOS executable is created at `dist/DisklavierConverter`.
 
-PyInstaller doit être lancé sur le système cible : Windows sous Windows,
-macOS sous macOS et Linux sous Linux.
+PyInstaller must be run on the target operating system: Windows builds on Windows,
+macOS builds on macOS, and Linux builds on Linux.
 
-Pour créer un installateur, ouvrir `DisklavierConverter.iss` avec Inno Setup après la compilation.
+To create a Windows installer, open `DisklavierConverter.iss` with Inno Setup after building.
 
-## Utilisation
+## Usage
 
 ```text
 .\dist\DisklavierConverter.exe entree.wav -o sortie.mid
 ```
 
-Le programme utilise le canal droit du WAV, où Yamaha place généralement les données Analog-MIDI.
-Les paramètres avancés sont disponibles avec `-h`.
+The program reads the right WAV channel, where Yamaha normally stores Analog-MIDI data.
+Run the program with `-h` to see the advanced options.
 
-## Licence
+## License
 
-Ce projet est distribué sous licence GNU GPL v3 ou ultérieure. Voir [LICENSE](LICENSE).
+This project is distributed under the GNU General Public License v3 or later. See [LICENSE](LICENSE).
 
-Les fichiers WAV/MIDI de test et les captures GDB ne sont pas inclus dans ce dépôt ; ils sont trop volumineux et peuvent contenir des données musicales protégées.
+Test WAV/MIDI files and GDB captures are not included in this repository because they are large and may contain copyrighted musical material.
