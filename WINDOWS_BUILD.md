@@ -1,16 +1,33 @@
-# Version Windows
+# Windows
 
-Installer Python 3.11 ou plus récent, puis ouvrir PowerShell dans ce dossier.
+## Pour les utilisateurs
+
+Téléchargez `DisklavierConverterSetup.exe`, lancez-le, puis utilisez le
+raccourci créé dans le menu Démarrer. Python, les bibliothèques et Inno Setup
+ne sont pas nécessaires sur le PC utilisateur.
+
+## Pour créer une version
+
+Installez Python 3.11 ou plus récent et Inno Setup 6, puis ouvrez PowerShell
+dans ce dossier :
 
 ```powershell
 Set-ExecutionPolicy -Scope Process Bypass
 .\build_windows.ps1
 ```
 
-Le programme sera créé ici :
+Le script crée automatiquement :
 
 ```text
 dist\DisklavierConverter.exe
+installer\DisklavierConverterSetup.exe
+```
+
+Si Inno Setup n’est pas installé, le script crée tout de même l’exécutable.
+Pour demander explicitement cette version sans installateur :
+
+```powershell
+.\build_windows.ps1 -SkipInstaller
 ```
 
 Utilisation :
@@ -20,4 +37,4 @@ Utilisation :
 ```
 
 Le fichier `yamaha_templates.bin` est intégré dans l’exécutable. Aucun Python
-ni paquet supplémentaire n’est nécessaire sur le PC qui utilise l’exécutable.
+ni paquet supplémentaire n’est nécessaire sur le PC qui utilise le programme.

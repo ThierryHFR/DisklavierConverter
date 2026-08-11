@@ -4,6 +4,7 @@ AppVersion=1.0.0
 DefaultDirName={autopf}\Disklavier Converter
 DefaultGroupName=Disklavier Converter
 OutputBaseFilename=DisklavierConverterSetup
+OutputDir=installer
 Compression=lzma
 SolidCompression=yes
 

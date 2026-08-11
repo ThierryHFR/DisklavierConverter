@@ -37,11 +37,17 @@ jobs:
       - name: Build executable on Windows
         if: runner.os == 'Windows'
         shell: pwsh
-        run: >-
-          python -m PyInstaller --clean --noconfirm --onefile
-          --name DisklavierConverter
-          --add-data "yamaha_templates.bin;."
-          disklavier_converter.py
+        run: .\build_windows.ps1 -SkipInstaller
+
+      - name: Install Inno Setup
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: choco install innosetup --no-progress -y
+
+      - name: Build Windows installer
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: iscc DisklavierConverter.iss
 
       - name: Build executable on Unix
         if: runner.os != 'Windows'
@@ -57,4 +63,12 @@ jobs:
         with:
           name: DisklavierConverter-${{ runner.os }}
           path: dist/DisklavierConverter*
+          if-no-files-found: error
+
+      - name: Upload Windows installer
+        if: runner.os == 'Windows'
+        uses: actions/upload-artifact@v4
+        with:
+          name: DisklavierConverter-Setup
+          path: installer/DisklavierConverterSetup.exe
           if-no-files-found: error
