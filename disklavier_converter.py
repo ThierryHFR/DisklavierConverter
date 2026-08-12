@@ -10,6 +10,19 @@ PERM = np.array([3,4,12,11,2,5,13,10,0,7,15,8,1,6,14,9])
 INV = np.argsort(PERM)
 STATUS = set('89abcdef')
 
+
+def normalize_message(msg):
+    """Apply the MIDI conventions expected by sequencers such as Cubase."""
+    if msg.type == 'program_change':
+        # Recovered files are intended for piano playback, not the source
+        # instrument selected in the captured stream.
+        msg = msg.copy(program=0, channel=0)
+    elif msg.type == 'note_on' and msg.velocity == 0:
+        # Treat the MIDI shorthand for note-off explicitly for older sequencers.
+        msg = mido.Message('note_off', channel=msg.channel,
+                           note=msg.note, velocity=64)
+    return msg
+
 def split_burst(s):
     out = []
     while s:
@@ -80,6 +93,7 @@ def main():
                 if typ == 9 and data[2]: data[2] = min(127, data[2] + 15)
                 try: msg = mido.Message.from_bytes(data)
                 except ValueError: continue
+            msg = normalize_message(msg)
             if msg.channel != 9: msg.channel = 0
             now = a.time_offset + state * (14 / 44100)
             msg.time = int(round(mido.second2tick(max(0, now - (previous or 0)), 480, 500000)))

@@ -17,6 +17,8 @@ for tr in src.tracks:
         if msg.type == 'note_on' and msg.velocity == 0:
             msg = mido.Message('note_off', channel=msg.channel,
                                note=msg.note, velocity=64, time=msg.time)
+        if msg.type == 'program_change':
+            msg = msg.copy(program=0, channel=0)
         if msg.type in ('note_on', 'note_off') and not 0 <= msg.note <= 127:
             continue
         dst.append(msg)
