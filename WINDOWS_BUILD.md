@@ -38,3 +38,8 @@ Utilisation :
 
 Le fichier `yamaha_templates.bin` est intégré dans l’exécutable. Aucun Python
 ni paquet supplémentaire n’est nécessaire sur le PC qui utilise le programme.
+
+Pour produire un exécutable Windows 32 bits, utilisez l’installateur Python
+3.11 32 bits. Le script détecte automatiquement cette architecture et utilise
+`requirements-windows-x86.txt` (notamment NumPy 1.24.4). Un Python 64 bits
+produit l’exécutable Windows 64 bits habituel.
