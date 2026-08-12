@@ -56,8 +56,14 @@ chmod +x build_macos.sh
 
 The Linux/macOS executable is created at `dist/DisklavierConverter`.
 
-PyInstaller must be run on the target operating system: Windows builds on Windows,
+PyInstaller must be run on the target operating system and architecture: Windows builds on Windows,
 macOS builds on macOS, and Linux builds on Linux.
+
+The GitHub Actions workflow builds both Windows x64 and Windows x86 versions.
+The x86 build uses 32-bit Python 3.11 and a compatible NumPy version. To create
+the x86 version locally, install 32-bit Python 3.11 and run the same
+`build_windows.ps1` command; the script selects the correct dependencies
+automatically.
 
 Inno Setup 6 is needed only on the machine that builds the installer; it is not
 needed by people who install the program.

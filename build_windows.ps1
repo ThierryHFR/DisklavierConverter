@@ -8,7 +8,17 @@ if (-not (Get-Command python -ErrorAction SilentlyContinue)) {
     throw 'Python 3.11 ou plus récent est nécessaire pour construire le programme.'
 }
 
-python -m pip install -r requirements-windows.txt
+$pythonBits = python -c "import struct; print(struct.calcsize('P') * 8)"
+if ($pythonBits -eq '32') {
+    $requirements = 'requirements-windows-x86.txt'
+} elseif ($pythonBits -eq '64') {
+    $requirements = 'requirements-windows.txt'
+} else {
+    throw "Architecture Python non supportée : $pythonBits bits."
+}
+
+Write-Host "Build Windows $pythonBits bits avec $requirements"
+python -m pip install -r $requirements
 python -m PyInstaller --clean --noconfirm --onefile `
     --name DisklavierConverter `
     --add-data 'yamaha_templates.bin;.' `

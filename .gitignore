@@ -14,4 +14,5 @@ dist/
 !README.md
 !WINDOWS_BUILD.md
 !requirements-windows.txt
+!requirements-windows-x86.txt
 !requirements.txt
