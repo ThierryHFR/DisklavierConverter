@@ -1,5 +1,6 @@
 param(
-    [switch]$SkipInstaller
+    [switch]$SkipInstaller,
+    [switch]$Windows7X86
 )
 
 $ErrorActionPreference = 'Stop'
@@ -9,7 +10,12 @@ if (-not (Get-Command python -ErrorAction SilentlyContinue)) {
 }
 
 $pythonBits = python -c "import struct; print(struct.calcsize('P') * 8)"
-if ($pythonBits -eq '32') {
+if ($Windows7X86) {
+    if ($pythonBits -ne '32') { throw 'Le profil Windows 7 nécessite Python 3.8 32 bits.' }
+    $pythonVersion = python -c "import sys; print('.'.join(map(str, sys.version_info[:2])))"
+    if ($pythonVersion -ne '3.8') { throw "Le profil Windows 7 nécessite Python 3.8.x, trouvé : $pythonVersion." }
+    $requirements = 'requirements-windows-7-x86.txt'
+} elseif ($pythonBits -eq '32') {
     $requirements = 'requirements-windows-x86.txt'
 } elseif ($pythonBits -eq '64') {
     $requirements = 'requirements-windows.txt'
@@ -17,7 +23,11 @@ if ($pythonBits -eq '32') {
     throw "Architecture Python non supportée : $pythonBits bits."
 }
 
-Write-Host "Build Windows $pythonBits bits avec $requirements"
+if ($Windows7X86) {
+    Write-Host 'Build Windows 7 x86 avec Python 3.8 et PyInstaller 5.13.2'
+} else {
+    Write-Host "Build Windows $pythonBits bits avec $requirements"
+}
 python -m pip install -r $requirements
 python -m PyInstaller --clean --noconfirm --onefile `
     --name DisklavierConverter `

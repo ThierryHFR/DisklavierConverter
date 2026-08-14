@@ -43,3 +43,18 @@ Pour produire un exécutable Windows 32 bits, utilisez l’installateur Python
 3.11 32 bits. Le script détecte automatiquement cette architecture et utilise
 `requirements-windows-x86.txt` (notamment NumPy 1.24.4). Un Python 64 bits
 produit l’exécutable Windows 64 bits habituel.
+
+### Windows 7 32 bits
+
+Windows 7 ne prend pas en charge Python 3.9 ou plus récent. Pour produire un
+exécutable compatible Windows 7, installez Python **3.8.10 32 bits**, puis
+exécutez :
+
+```powershell
+.\build_windows.ps1 -Windows7X86
+```
+
+Ce profil utilise `requirements-windows-7-x86.txt` et PyInstaller 5.13.2.
+Windows 7 doit être en Service Pack 1 avec les mises à jour Universal CRT.
+L’installateur Inno Setup est facultatif ; utilisez `-SkipInstaller` pour
+produire uniquement le fichier `.exe`.
