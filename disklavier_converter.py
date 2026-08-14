@@ -31,9 +31,26 @@ def split_burst(s):
         full = 4 if s[0] in 'cd' else 6
         if len(s) <= full:
             out.append(s); break
-        cuts = [i for i in (full, full - 1) if i < len(s) and s[i] in STATUS]
+        lengths = (full, full - 1, full - 2) if s[0] in '89' else (full, full - 1)
+        cuts = [i for i in lengths if i < len(s) and s[i] in STATUS]
         cut = cuts[0] if cuts else full
         out.append(s[:cut]); s = s[cut:]
+    return out
+
+def split_burst_spans(s):
+    """Split a burst while retaining each message's non-idle start index."""
+    out = []
+    base = 0
+    while s:
+        if s.startswith('c400000'):
+            out.append((s[:7], base)); s = s[7:]; base += 7; continue
+        full = 4 if s[0] in 'cd' else 6
+        if len(s) <= full:
+            out.append((s, base)); break
+        lengths = (full, full - 1, full - 2) if s[0] in '89' else (full, full - 1)
+        cuts = [i for i in lengths if i < len(s) and s[i] in STATUS]
+        cut = cuts[0] if cuts else full
+        out.append((s[:cut], base)); s = s[cut:]; base += cut
     return out
 
 def restore(s):
@@ -44,6 +61,47 @@ def restore(s):
     if len(s) == full - 1:
         return s[:3] + 'f' + s[3:] if s[0] in '89' else s + 'f'
     return None
+
+def restore_candidates(s):
+    if len(s) == 5 and s[0] in '89':
+        return [s[:3] + 'f' + s[3:], s + 'f']
+    q = restore(s)
+    return [q] if q is not None else []
+
+def midi_candidates(qs):
+    out = []
+    for q in qs:
+        try:
+            if q == 'c40000':
+                out.append(mido.Message('program_change', channel=0, program=0)); continue
+            data = [int(q[i:i+2], 16) for i in range(0, len(q), 2)]
+            typ = data[0] >> 4
+            if typ not in (8, 9, 11, 12, 14): continue
+            if typ in (8, 9, 11, 14) and len(data) != 3: continue
+            if typ == 12 and len(data) != 2: continue
+            if any(v > 127 for v in data[1:]): continue
+            if typ == 9 and data[2]: data[2] = min(127, data[2] + 16)
+            out.append(mido.Message.from_bytes(data))
+        except (ValueError, IndexError):
+            continue
+    return out
+
+def choose_candidate(events, index, options):
+    if len(options) <= 1: return options[0] if options else None
+    scores = []
+    for msg in options:
+        score = 0
+        if msg.type == 'note_on' and msg.velocity:
+            for future in events[index + 1:index + 21]:
+                for candidate in future[1]:
+                    if candidate.type == 'note_off' and candidate.note == msg.note:
+                        score = 3; break
+                    if (candidate.type == 'note_on' and candidate.velocity and
+                            candidate.note == msg.note):
+                        break
+                if score: break
+        scores.append(score)
+    return options[scores.index(max(scores))]
 
 def decode(path, template_path, offset, period):
     with wave.open(str(path), 'rb') as w:
@@ -61,7 +119,7 @@ def decode(path, template_path, offset, period):
     pos = np.flatnonzero(nib[1:] != 15) + 1
     pos = pos[pos >= 1300]
     cuts = np.r_[0, np.flatnonzero(np.diff(pos) > 50) + 1, len(pos)]
-    return nib, [(int(pos[a]), ''.join(format(int(v), 'x') for v in nib[pos[a:e]]))
+    return nib, [(pos[a:e], ''.join(format(int(v), 'x') for v in nib[pos[a:e]]))
                  for a, e in zip(cuts[:-1], cuts[1:])]
 
 def main():
@@ -70,7 +128,9 @@ def main():
     ap.add_argument('-o', '--output', type=Path)
     ap.add_argument('-t', '--templates', type=Path, default=None)
     ap.add_argument('--offset', type=int, default=1400)
-    ap.add_argument('--time-offset', type=float, default=0.819)
+    ap.add_argument('--time-offset', type=float, default=-1.177)
+    ap.add_argument('--keep-setup', action='store_true',
+                    help='conserver les messages Yamaha program/pitch de préambule')
     a = ap.parse_args()
     base = Path(__file__).resolve().parent
     templates = a.templates or base / 'yamaha_templates.bin'
@@ -78,24 +138,19 @@ def main():
     _, bursts = decode(a.wav, templates, a.offset, 14 / 44100)
     mid = mido.MidiFile(type=0, ticks_per_beat=480); tr = mido.MidiTrack(); mid.tracks.append(tr)
     tr.append(mido.MetaMessage('set_tempo', tempo=500000, time=0)); previous = None; count = 0
-    for state, burst in bursts:
-        for piece in split_burst(burst):
-            q = restore(piece)
-            if q is None: continue
-            if q == 'c40000':
-                msg = mido.Message('program_change', channel=0, program=0)
-            else:
-                data = [int(q[i:i+2], 16) for i in range(0, len(q), 2)]
-                typ = data[0] >> 4
-                if typ not in (8, 9, 11, 12, 14): continue
-                if typ in (8, 9, 11, 14) and len(data) != 3: continue
-                if typ == 12 and len(data) != 2: continue
-                if typ == 9 and data[2]: data[2] = min(127, data[2] + 15)
-                try: msg = mido.Message.from_bytes(data)
-                except ValueError: continue
+    events = []
+    for positions, burst in bursts:
+        for piece, start in split_burst_spans(burst):
+            options = midi_candidates(restore_candidates(piece))
+            if options: events.append((int(positions[start]), options))
+    for index, (state, options) in enumerate(events):
+            msg = choose_candidate(events, index, options)
+            if msg is None: continue
+            if not a.keep_setup and msg.type in ('program_change', 'pitchwheel'):
+                continue
             msg = normalize_message(msg)
             if msg.channel != 9: msg.channel = 0
-            now = a.time_offset + state * (14 / 44100)
+            now = max(0.0, a.time_offset + state * (14 / 44100))
             msg.time = int(round(mido.second2tick(max(0, now - (previous or 0)), 480, 500000)))
             tr.append(msg); previous = now; count += 1
     tr.append(mido.MetaMessage('end_of_track', time=0)); mid.save(out)
