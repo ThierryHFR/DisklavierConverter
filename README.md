@@ -77,6 +77,17 @@ needed by people who install the program.
 The program reads the right WAV channel, where Yamaha normally stores Analog-MIDI data.
 Run the program with `-h` to see the advanced options.
 
+The decoder compensates for the Yamaha transport preamble and removes its
+setup messages by default. Use `--keep-setup` when those `program_change` and
+`pitchwheel` messages must be preserved:
+
+```bash
+python3 disklavier_converter.py entree.wav -o sortie.mid --keep-setup
+```
+
+The decoder also retains message positions inside each Yamaha burst and
+resolves omitted idle `F` nibbles using the surrounding note-off events.
+
 ## Yamaha templates
 
 `yamaha_templates.bin` is the demodulator's calibration data. It contains 16 reference waveforms, each made of 2,240 signed 16-bit PCM samples, representing the phase states of the Yamaha control carrier.
