@@ -80,7 +80,9 @@ def midi_candidates(qs):
             if typ in (8, 9, 11, 14) and len(data) != 3: continue
             if typ == 12 and len(data) != 2: continue
             if any(v > 127 for v in data[1:]): continue
-            if typ == 9 and data[2]: data[2] = min(127, data[2] + 16)
+            # This sampler stores note-on velocity 31 units below the MIDI
+            # value used by its reference Standard MIDI file.
+            if typ == 9 and data[2]: data[2] = min(127, data[2] + 31)
             out.append(mido.Message.from_bytes(data))
         except (ValueError, IndexError):
             continue
