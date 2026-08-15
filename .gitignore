@@ -10,6 +10,7 @@ dist/
 *.tsv
 *.trace
 *.txt
+yamaha_templates_reproduction/MID2PianoCD_v1.22_setup.exe
 !LICENSE
 !README.md
 !WINDOWS_BUILD.md
