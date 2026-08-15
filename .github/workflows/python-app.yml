@@ -65,7 +65,7 @@ jobs:
         run: python -m pip install -r requirements-windows-7-x86.txt
 
       - name: Run syntax checks
-        run: python -m py_compile disklavier_converter.py filter_recovered_midi.py
+        run: python -m py_compile disklavier_converter.py disklavier_gui.py filter_recovered_midi.py
 
       - name: Validate Yamaha templates
         run: python -c "import pathlib; p=pathlib.Path('yamaha_templates.bin'); assert p.stat().st_size == 16*2240*2"
@@ -90,9 +90,34 @@ jobs:
         shell: bash
         run: >-
           python -m PyInstaller --clean --noconfirm --onefile
+          --windowed
           --name DisklavierConverter
           --add-data "yamaha_templates.bin:."
-          disklavier_converter.py
+          --add-data "locales:locales"
+          disklavier_gui.py
+
+      - name: Package Linux distribution
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          mkdir -p package
+          tar -czf "package/DisklavierConverter-Linux-${{ matrix.arch }}-${{ matrix.target }}.tar.gz" \
+            -C dist DisklavierConverter
+
+      - name: Package macOS application
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          mkdir -p package
+          if [ -d dist/DisklavierConverter.app ]; then
+            ditto -c -k --sequesterRsrc --keepParent \
+              dist/DisklavierConverter.app \
+              "package/DisklavierConverter-macOS-${{ matrix.arch }}-${{ matrix.target }}.zip"
+          else
+            ditto -c -k --sequesterRsrc --keepParent \
+              dist/DisklavierConverter \
+              "package/DisklavierConverter-macOS-${{ matrix.arch }}-${{ matrix.target }}.zip"
+          fi
 
       - name: Upload executable
         uses: actions/upload-artifact@v4
@@ -107,4 +132,12 @@ jobs:
         with:
           name: DisklavierConverter-Setup-${{ matrix.arch }}-${{ matrix.target }}
           path: installer/DisklavierConverterSetup.exe
+          if-no-files-found: error
+
+      - name: Upload Unix installer package
+        if: runner.os != 'Windows'
+        uses: actions/upload-artifact@v4
+        with:
+          name: DisklavierConverter-Installer-${{ runner.os }}-${{ matrix.arch }}-${{ matrix.target }}
+          path: package/*
           if-no-files-found: error
