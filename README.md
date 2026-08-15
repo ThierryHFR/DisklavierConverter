@@ -69,6 +69,10 @@ GitHub Actions also publishes a distributable package for every matrix target:
 the Windows targets receive an Inno Setup installer, Linux receives a `.tar.gz`
 archive, and macOS receives a `.zip` archive containing the application.
 
+The graphical interface is available in French, English, Spanish, Italian and
+German. It detects the operating system language automatically; the language
+can also be changed from the selector in the application.
+
 Inno Setup 6 is needed only on the machine that builds the installer; it is not
 needed by people who install the program.
 
