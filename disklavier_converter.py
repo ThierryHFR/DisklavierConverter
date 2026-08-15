@@ -64,18 +64,14 @@ def decode(path, template_path, offset, period):
     return nib, [(int(pos[a]), ''.join(format(int(v), 'x') for v in nib[pos[a:e]]))
                  for a, e in zip(cuts[:-1], cuts[1:])]
 
-def main():
-    ap = argparse.ArgumentParser(description='Convert Yamaha Disklavier WAV to MIDI')
-    ap.add_argument('wav', type=Path)
-    ap.add_argument('-o', '--output', type=Path)
-    ap.add_argument('-t', '--templates', type=Path, default=None)
-    ap.add_argument('--offset', type=int, default=1400)
-    ap.add_argument('--time-offset', type=float, default=0.819)
-    a = ap.parse_args()
+def convert_file(input_path, output_path, template_path=None, offset=1400,
+                 time_offset=0.819):
+    """Convert one Yamaha WAV file and return the number of MIDI events."""
+    input_path = Path(input_path)
+    output_path = Path(output_path)
     base = Path(__file__).resolve().parent
-    templates = a.templates or base / 'yamaha_templates.bin'
-    out = a.output or a.wav.with_name(a.wav.stem + '_recovered.mid')
-    _, bursts = decode(a.wav, templates, a.offset, 14 / 44100)
+    templates = Path(template_path) if template_path else base / 'yamaha_templates.bin'
+    _, bursts = decode(input_path, templates, offset, 14 / 44100)
     mid = mido.MidiFile(type=0, ticks_per_beat=480); tr = mido.MidiTrack(); mid.tracks.append(tr)
     tr.append(mido.MetaMessage('set_tempo', tempo=500000, time=0)); previous = None; count = 0
     for state, burst in bursts:
@@ -95,10 +91,23 @@ def main():
                 except ValueError: continue
             msg = normalize_message(msg)
             if msg.channel != 9: msg.channel = 0
-            now = a.time_offset + state * (14 / 44100)
+            now = time_offset + state * (14 / 44100)
             msg.time = int(round(mido.second2tick(max(0, now - (previous or 0)), 480, 500000)))
             tr.append(msg); previous = now; count += 1
     tr.append(mido.MetaMessage('end_of_track', time=0)); mid.save(out)
+    return count
+
+
+def main():
+    ap = argparse.ArgumentParser(description='Convert Yamaha Disklavier WAV to MIDI')
+    ap.add_argument('wav', type=Path)
+    ap.add_argument('-o', '--output', type=Path)
+    ap.add_argument('-t', '--templates', type=Path, default=None)
+    ap.add_argument('--offset', type=int, default=1400)
+    ap.add_argument('--time-offset', type=float, default=0.819)
+    a = ap.parse_args()
+    out = a.output or a.wav.with_name(a.wav.stem + '_recovered.mid')
+    count = convert_file(a.wav, out, a.templates, a.offset, a.time_offset)
     print(f'{count} événements écrits dans {out}')
 
 if __name__ == '__main__': main()

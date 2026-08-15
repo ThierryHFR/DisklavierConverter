@@ -65,10 +65,21 @@ the x86 version locally, install 32-bit Python 3.11 and run the same
 `build_windows.ps1` command; the script selects the correct dependencies
 automatically.
 
+GitHub Actions also publishes a distributable package for every matrix target:
+the Windows targets receive an Inno Setup installer, Linux receives a `.tar.gz`
+archive, and macOS receives a `.zip` archive containing the application.
+
 Inno Setup 6 is needed only on the machine that builds the installer; it is not
 needed by people who install the program.
 
 ## Usage
+
+The graphical application lets you select one or more Yamaha Disklavier WAV
+files and an output directory. By default, MIDI files are written to
+`Music/DisklaviertoMidi` in the user's home directory. Each output file keeps
+the input filename and uses the `.mid` extension.
+
+The command-line converter remains available for scripted use:
 
 ```text
 .\dist\DisklavierConverter.exe entree.wav -o sortie.mid
