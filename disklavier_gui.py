@@ -118,7 +118,7 @@ class ConverterApp(tk.Tk):
             return
         self.running = True
         self._set_enabled(False)
-        self.progress.configure(maximum=len(self.files), value=0)
+        self.progress.configure(maximum=100, value=0)
         threading.Thread(target=self._convert_files, args=(list(self.files), output_dir),
                          daemon=True).start()
 
@@ -131,15 +131,21 @@ class ConverterApp(tk.Tk):
                 results.append((input_path, None, 0, exc))
             self.messages.put(('done', results))
             return
+        total_files = len(files)
         for index, input_path in enumerate(files, 1):
             output_path = output_dir / (Path(input_path).stem + '.mid')
             try:
-                count = convert_file(input_path, output_path)
+                def report_file_progress(value, file_index=index, file_name=Path(input_path).name):
+                    overall = ((file_index - 1) + value) / total_files
+                    self.messages.put(('progress', overall, file_index, total_files, file_name))
+
+                count = convert_file(input_path, output_path,
+                                     progress_callback=report_file_progress)
                 results.append((input_path, output_path, count, None))
-                self.messages.put(('progress', index, len(files), output_path.name))
             except Exception as exc:  # Continue with the remaining selected files.
                 results.append((input_path, None, 0, exc))
-                self.messages.put(('progress', index, len(files), f'{Path(input_path).name} (erreur)'))
+                self.messages.put(('progress', index / total_files, index, total_files,
+                                   f'{Path(input_path).name} (erreur)'))
         self.messages.put(('done', results))
 
     def _poll_messages(self):
@@ -147,9 +153,9 @@ class ConverterApp(tk.Tk):
             while True:
                 message = self.messages.get_nowait()
                 if message[0] == 'progress':
-                    _, index, total, name = message
-                    self.progress.configure(value=index)
-                    self.status.set(f'{index}/{total} converti(s) : {name}')
+                    _, overall, index, total, name = message
+                    self.progress.configure(value=overall * 100)
+                    self.status.set(f'{index}/{total} in progress: {name} ({overall:.0%})')
                 else:
                     self._finish(message[1])
         except queue.Empty:

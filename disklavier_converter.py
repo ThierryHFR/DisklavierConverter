@@ -45,36 +45,51 @@ def restore(s):
         return s[:3] + 'f' + s[3:] if s[0] in '89' else s + 'f'
     return None
 
-def decode(path, template_path, offset, period):
+def decode(path, template_path, offset, period, progress_callback=None):
+    """Decode the WAV and optionally report progress between 0.0 and 1.0."""
+    report = progress_callback or (lambda _value: None)
     with wave.open(str(path), 'rb') as w:
         fs, ch = w.getframerate(), w.getnchannels()
         x = np.frombuffer(w.readframes(w.getnframes()), dtype='<i2').reshape(-1, ch)[:, 1].astype(float)
+    report(0.05)
     t0 = np.fromfile(template_path, dtype='<i2').reshape(16, 2240).astype(float)
     idx = np.arange(14) * 160.0
     templates = np.array([np.interp(idx, np.arange(2240), q) for q in t0])
     n = (len(x) - offset) // 14
-    blocks = x[offset:offset + n * 14].reshape(n, 14)
-    d = ((blocks[:, None, :] + templates[None, :, :]) ** 2).mean(2)
-    states = d.argmin(1)
+    if n <= 0:
+        raise ValueError('Le fichier WAV ne contient pas assez de données Yamaha.')
+    states = np.empty(n, dtype=np.int64)
+    chunk_size = 100_000
+    for start in range(0, n, chunk_size):
+        end = min(start + chunk_size, n)
+        blocks = x[offset + start * 14:offset + end * 14].reshape(end - start, 14)
+        d = ((blocks[:, None, :] + templates[None, :, :]) ** 2).mean(2)
+        states[start:end] = d.argmin(1)
+        report(0.05 + 0.65 * end / n)
     nib = np.empty(n, dtype=np.uint8); nib[0] = 255
     nib[1:] = [INV[(int(b) - int(a)) & 15] for a, b in zip(states[:-1], states[1:])]
     pos = np.flatnonzero(nib[1:] != 15) + 1
     pos = pos[pos >= 1300]
     cuts = np.r_[0, np.flatnonzero(np.diff(pos) > 50) + 1, len(pos)]
-    return nib, [(int(pos[a]), ''.join(format(int(v), 'x') for v in nib[pos[a:e]]))
-                 for a, e in zip(cuts[:-1], cuts[1:])]
+    bursts = [(int(pos[a]), ''.join(format(int(v), 'x') for v in nib[pos[a:e]]))
+              for a, e in zip(cuts[:-1], cuts[1:])]
+    report(0.8)
+    return nib, bursts
 
 def convert_file(input_path, output_path, template_path=None, offset=1400,
-                 time_offset=0.819):
+                 time_offset=0.819, progress_callback=None):
     """Convert one Yamaha WAV file and return the number of MIDI events."""
+    report = progress_callback or (lambda _value: None)
     input_path = Path(input_path)
     output_path = Path(output_path)
     base = Path(__file__).resolve().parent
     templates = Path(template_path) if template_path else base / 'yamaha_templates.bin'
-    _, bursts = decode(input_path, templates, offset, 14 / 44100)
+    _, bursts = decode(input_path, templates, offset, 14 / 44100,
+                       lambda value: report(value * 0.8))
     mid = mido.MidiFile(type=0, ticks_per_beat=480); tr = mido.MidiTrack(); mid.tracks.append(tr)
     tr.append(mido.MetaMessage('set_tempo', tempo=500000, time=0)); previous = None; count = 0
-    for state, burst in bursts:
+    total_bursts = max(1, len(bursts))
+    for burst_index, (state, burst) in enumerate(bursts, 1):
         for piece in split_burst(burst):
             q = restore(piece)
             if q is None: continue
@@ -94,7 +109,9 @@ def convert_file(input_path, output_path, template_path=None, offset=1400,
             now = time_offset + state * (14 / 44100)
             msg.time = int(round(mido.second2tick(max(0, now - (previous or 0)), 480, 500000)))
             tr.append(msg); previous = now; count += 1
-    tr.append(mido.MetaMessage('end_of_track', time=0)); mid.save(out)
+        report(0.8 + 0.2 * burst_index / total_bursts)
+    tr.append(mido.MetaMessage('end_of_track', time=0)); mid.save(output_path)
+    report(1.0)
     return count
 
 
