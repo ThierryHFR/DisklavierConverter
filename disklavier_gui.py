@@ -44,17 +44,20 @@ class ConverterApp(tk.Tk):
     def __init__(self):
         super().__init__()
         self.title('Disklavier Converter')
-        self.geometry('720x460')
-        self.minsize(620, 380)
         self.files = []
         self.messages = queue.Queue()
         self.running = False
         self.language = tk.StringVar(value=system_language())
         self.translations = {}
         self.output_dir = tk.StringVar(value=str(default_output_dir()))
+        self.template_path = tk.StringVar()
+        self.offset = tk.StringVar(value='1400')
+        self.time_offset = tk.StringVar(value='-1.177')
+        self.keep_setup = tk.BooleanVar(value=False)
         self.status = tk.StringVar()
         self._build_widgets()
         self._apply_language()
+        self._fit_to_contents(initial=True)
         self.after(100, self._poll_messages)
 
     def tr(self, key, **values):
@@ -107,16 +110,53 @@ class ConverterApp(tk.Tk):
         self.browse_button = ttk.Button(output_frame, command=self.choose_output_dir)
         self.browse_button.grid(row=0, column=1, padx=(6, 0))
 
+        self.options_frame = ttk.LabelFrame(frame)
+        self.options_frame.grid(row=6, column=0, columnspan=2, sticky='ew', pady=(0, 12))
+        self.options_frame.columnconfigure(1, weight=1)
+        self.template_label = ttk.Label(self.options_frame)
+        self.template_label.grid(row=0, column=0, sticky='w', padx=(8, 6), pady=(8, 4))
+        self.template_entry = ttk.Entry(self.options_frame, textvariable=self.template_path)
+        self.template_entry.grid(
+            row=0, column=1, sticky='ew', pady=(8, 4))
+        self.template_browse_button = ttk.Button(
+            self.options_frame, command=self.choose_template)
+        self.template_browse_button.grid(row=0, column=2, padx=(6, 8), pady=(8, 4))
+        self.offset_label = ttk.Label(self.options_frame)
+        self.offset_label.grid(row=1, column=0, sticky='w', padx=(8, 6), pady=4)
+        self.offset_entry = ttk.Entry(self.options_frame, textvariable=self.offset, width=12)
+        self.offset_entry.grid(
+            row=1, column=1, sticky='w', pady=4)
+        self.time_offset_label = ttk.Label(self.options_frame)
+        self.time_offset_label.grid(row=2, column=0, sticky='w', padx=(8, 6), pady=4)
+        self.time_offset_entry = ttk.Entry(
+            self.options_frame, textvariable=self.time_offset, width=12)
+        self.time_offset_entry.grid(
+            row=2, column=1, sticky='w', pady=4)
+        self.keep_setup_check = ttk.Checkbutton(
+            self.options_frame, variable=self.keep_setup)
+        self.keep_setup_check.grid(row=3, column=0, columnspan=3, sticky='w', padx=8,
+                                   pady=(4, 8))
+
         self.progress = ttk.Progressbar(frame, mode='determinate')
-        self.progress.grid(row=6, column=0, columnspan=2, sticky='ew')
+        self.progress.grid(row=7, column=0, columnspan=2, sticky='ew')
         self.status_label = ttk.Label(frame, textvariable=self.status)
-        self.status_label.grid(row=7, column=0, columnspan=2, sticky='w', pady=(6, 8))
+        self.status_label.grid(row=8, column=0, columnspan=2, sticky='w', pady=(6, 8))
         self.convert_button = ttk.Button(frame, command=self.start_conversion)
-        self.convert_button.grid(row=8, column=0, columnspan=2, sticky='e')
+        self.convert_button.grid(row=9, column=0, columnspan=2, sticky='e')
 
     def change_language(self, _event=None):
         self.translations = load_translations(self.language.get())
         self._apply_language()
+        self._fit_to_contents()
+
+    def _fit_to_contents(self, initial=False):
+        """Keep the initial and minimum window size limited to its contents."""
+        self.update_idletasks()
+        width = self.winfo_reqwidth()
+        height = self.winfo_reqheight()
+        self.minsize(width, height)
+        if initial:
+            self.geometry(f'{width}x{height}')
 
     def _apply_language(self):
         self.translations = self.translations or load_translations(self.language.get())
@@ -128,6 +168,12 @@ class ConverterApp(tk.Tk):
         self.clear_button.configure(text=self.tr('clear'))
         self.output_label.configure(text=self.tr('output_folder'))
         self.browse_button.configure(text=self.tr('browse'))
+        self.options_frame.configure(text=self.tr('advanced_options'))
+        self.template_label.configure(text=self.tr('templates_file'))
+        self.template_browse_button.configure(text=self.tr('browse'))
+        self.offset_label.configure(text=self.tr('sample_offset'))
+        self.time_offset_label.configure(text=self.tr('time_offset'))
+        self.keep_setup_check.configure(text=self.tr('keep_setup'))
         self.convert_button.configure(text=self.tr('convert'))
         self._update_status()
 
@@ -159,13 +205,23 @@ class ConverterApp(tk.Tk):
         if directory:
             self.output_dir.set(directory)
 
+    def choose_template(self):
+        path = filedialog.askopenfilename(
+            title=self.tr('choose_templates'),
+            filetypes=[(self.tr('template_files'), '*.bin'),
+                       (self.tr('all_files'), '*.*')])
+        if path:
+            self.template_path.set(path)
+
     def _update_status(self):
         self.status.set(self.tr('selected_count', count=len(self.files)))
 
     def _set_enabled(self, enabled):
         state = 'normal' if enabled else 'disabled'
         for widget in (self.add_button, self.remove_button, self.clear_button,
-                       self.browse_button, self.convert_button, self.language_combo):
+                       self.browse_button, self.template_browse_button,
+                       self.template_entry, self.offset_entry, self.time_offset_entry,
+                       self.keep_setup_check, self.convert_button, self.language_combo):
             widget.configure(state=state)
 
     def start_conversion(self):
@@ -179,13 +235,22 @@ class ConverterApp(tk.Tk):
             messagebox.showwarning(self.tr('missing_folder_title'),
                                    self.tr('missing_folder_message'))
             return
+        try:
+            offset = int(self.offset.get())
+            time_offset = float(self.time_offset.get())
+        except ValueError:
+            messagebox.showwarning(self.tr('invalid_options_title'),
+                                   self.tr('invalid_options_message'))
+            return
+        template_path = self.template_path.get().strip() or None
         self.running = True
         self._set_enabled(False)
         self.progress.configure(maximum=100, value=0)
-        threading.Thread(target=self._convert_files, args=(list(self.files), output_dir),
-                         daemon=True).start()
+        options = (template_path, offset, time_offset, self.keep_setup.get())
+        threading.Thread(target=self._convert_files,
+                         args=(list(self.files), output_dir, options), daemon=True).start()
 
-    def _convert_files(self, files, output_dir):
+    def _convert_files(self, files, output_dir, options):
         results = []
         try:
             output_dir.mkdir(parents=True, exist_ok=True)
@@ -195,6 +260,7 @@ class ConverterApp(tk.Tk):
             self.messages.put(('done', results))
             return
         total_files = len(files)
+        template_path, offset, time_offset, keep_setup = options
         for index, input_path in enumerate(files, 1):
             output_path = output_dir / (Path(input_path).stem + '.mid')
             try:
@@ -203,6 +269,8 @@ class ConverterApp(tk.Tk):
                     self.messages.put(('progress', overall, file_index, total_files, file_name))
 
                 count = convert_file(input_path, output_path,
+                                     template_path=template_path, offset=offset,
+                                     time_offset=time_offset, keep_setup=keep_setup,
                                      progress_callback=report_file_progress)
                 results.append((input_path, output_path, count, None))
             except Exception as exc:  # Continue with the remaining selected files.
