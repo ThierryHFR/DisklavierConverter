@@ -67,6 +67,10 @@ jobs:
       - name: Run syntax checks
         run: python -m py_compile disklavier_converter.py disklavier_gui.py filter_recovered_midi.py
 
+      - name: Validate GUI translations
+        run: >-
+          python -c "import json, pathlib; source=pathlib.Path('disklavier_gui.py').read_text(); needle='self.tr('+chr(39); keys={line.split(needle,1)[1].split(chr(39),1)[0] for line in source.splitlines() if needle in line}; files=list(pathlib.Path('locales').glob('*.json')); assert all(keys <= set(json.loads(path.read_text())) for path in files)"
+
       - name: Validate Yamaha templates
         run: python -c "import pathlib; p=pathlib.Path('yamaha_templates.bin'); assert p.stat().st_size == 16*2240*2"
 
