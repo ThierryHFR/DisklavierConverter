@@ -83,6 +83,19 @@ files and an output directory. By default, MIDI files are written to
 `Music/DisklaviertoMidi` in the user's home directory. Each output file keeps
 the input filename and uses the `.mid` extension.
 
+The **Advanced options** section exposes the same decoder options as the
+command-line converter:
+
+| GUI field | Command-line option | Default |
+| --- | --- | --- |
+| Templates file | `--templates` | The bundled `yamaha_templates.bin` |
+| Sample offset | `--offset` | `1400` |
+| Time offset (seconds) | `--time-offset` | `-1.177` |
+| Keep Yamaha setup messages | `--keep-setup` | Disabled |
+
+Leaving the templates field empty uses the bundled template. The offset fields
+must contain a valid integer and number respectively.
+
 The command-line converter remains available for scripted use:
 
 ```text
@@ -91,6 +104,15 @@ The command-line converter remains available for scripted use:
 
 The program reads the right WAV channel, where Yamaha normally stores Analog-MIDI data.
 Run the program with `-h` to see the advanced options.
+
+The complete command-line syntax is:
+
+```text
+disklavier_converter.py WAV [-o OUTPUT] [-t TEMPLATES]
+                            [--offset OFFSET]
+                            [--time-offset TIME_OFFSET]
+                            [--keep-setup]
+```
 
 The decoder compensates for the Yamaha transport preamble and removes its
 setup messages by default. Use `--keep-setup` when those `program_change` and

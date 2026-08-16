@@ -36,6 +36,12 @@ Utilisation :
 .\dist\DisklavierConverter.exe Mona_Lisa.wav -o Mona_Lisa.mid
 ```
 
+L'interface graphique donne aussi accès aux options avancées du convertisseur :
+fichier de modèles, décalage d'échantillons (`1400` par défaut), décalage
+temporel (`-1.177` seconde par défaut) et conservation des messages Yamaha de
+préambule. Si le fichier de modèles est laissé vide, le fichier intégré
+`yamaha_templates.bin` est utilisé.
+
 Le fichier `yamaha_templates.bin` est intégré dans l’exécutable. Aucun Python
 ni paquet supplémentaire n’est nécessaire sur le PC qui utilise le programme.
 
