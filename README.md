@@ -73,6 +73,15 @@ The graphical interface is available in French, English, Spanish, Italian and
 German. It detects the operating system language automatically; the language
 can also be changed from the selector in the application.
 
+### Graphical interface
+
+The graphical interface lets you add one or more Disklavier WAV files, choose
+the output folder, select a Yamaha template file, and configure the decoder.
+Use **Detect automatically** to estimate the sample alignment and relative
+time offset before converting the files.
+
+![Disklavier Converter graphical interface](interface.png)
+
 Inno Setup 6 is needed only on the machine that builds the installer; it is not
 needed by people who install the program.
 
