@@ -173,6 +173,69 @@ def decode(path, template_path, offset, period, progress_callback=None):
     return nibbles, bursts
 
 
+def detect_parameters(input_path, template_path=None):
+    """Estimate the symbol alignment and a relative musical time origin.
+
+    The WAV contains enough information to determine the sample alignment.
+    Its absolute MIDI start time is not encoded, so the returned time offset
+    places the first detected group of at least three notes at time zero.
+    """
+    input_path = Path(input_path)
+    base = Path(__file__).resolve().parent
+    templates_path = Path(template_path) if template_path else base / 'yamaha_templates.bin'
+    with wave.open(str(input_path), 'rb') as wav_file:
+        channels = wav_file.getnchannels()
+        samples = np.frombuffer(
+            wav_file.readframes(wav_file.getnframes()), dtype='<i2'
+        ).reshape(-1, channels)[:, 1].astype(float)
+    raw = np.fromfile(templates_path, dtype='<i2').reshape(16, 2240).astype(float)
+    indices = np.arange(14) * 160.0
+    templates = np.array([
+        np.interp(indices, np.arange(2240), template) for template in raw
+    ])
+
+    # The carrier is continuous, so its amplitude does not reveal the start
+    # of the data.  Only the phase modulo 14 samples matters; test the 14
+    # possible phases around the conventional 1400-sample reference.
+    candidates = range(1400, 1414)
+    best = None
+    for offset in candidates:
+        count = min((len(samples) - offset) // 14, 30_000)
+        blocks = samples[offset:offset + count * 14].reshape(count, 14)
+        states = ((blocks[:, None, :] + templates[None, :, :]) ** 2).mean(2).argmin(1)
+        nibbles = np.empty(count, dtype=np.uint8)
+        nibbles[0] = 255
+        nibbles[1:] = [INV[(int(after) - int(before)) & 15]
+                       for before, after in zip(states[:-1], states[1:])]
+        score = float(np.mean(nibbles[1:] == 15))
+        if best is None or score > best[0]:
+            best = (score, offset)
+    offset = best[1]
+
+    _, bursts = decode(input_path, templates_path, offset, 14 / 44100)
+    events = []
+    for positions, burst in bursts:
+        for piece, start in split_burst_spans(burst):
+            options = midi_candidates(restore_candidates(piece))
+            if options:
+                events.append((int(positions[start]), options))
+    first_group = None
+    for index, (state, options) in enumerate(events):
+        if any(msg.type == 'note_on' and msg.velocity for msg in options):
+            nearby = sum(
+                any(msg.type == 'note_on' and msg.velocity and 21 <= msg.note <= 108
+                    for msg in future)
+                for _, future in events[index:index + 12]
+            )
+            if nearby >= 3 and any(
+                    msg.type == 'note_on' and msg.velocity and 21 <= msg.note <= 108
+                    for msg in options):
+                first_group = state
+                break
+    time_offset = 0.0 if first_group is None else -first_group * (14 / 44100)
+    return offset, time_offset
+
+
 def convert_file(input_path, output_path, template_path=None, offset=1400,
                  time_offset=-1.177, keep_setup=False, progress_callback=None):
     """Convert one Yamaha WAV file and return the number of MIDI events."""

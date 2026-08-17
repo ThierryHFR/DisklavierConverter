@@ -9,7 +9,7 @@ import tkinter as tk
 from pathlib import Path
 from tkinter import filedialog, messagebox, ttk
 
-from disklavier_converter import convert_file
+from disklavier_converter import convert_file, detect_parameters
 
 
 def default_output_dir():
@@ -121,6 +121,8 @@ class ConverterApp(tk.Tk):
         self.template_browse_button = ttk.Button(
             self.options_frame, command=self.choose_template)
         self.template_browse_button.grid(row=0, column=2, padx=(6, 8), pady=(8, 4))
+        self.detect_button = ttk.Button(self.options_frame, command=self.start_detection)
+        self.detect_button.grid(row=0, column=3, padx=(6, 8), pady=(8, 4))
         self.offset_label = ttk.Label(self.options_frame)
         self.offset_label.grid(row=1, column=0, sticky='w', padx=(8, 6), pady=4)
         self.offset_entry = ttk.Entry(self.options_frame, textvariable=self.offset, width=12)
@@ -171,6 +173,7 @@ class ConverterApp(tk.Tk):
         self.options_frame.configure(text=self.tr('advanced_options'))
         self.template_label.configure(text=self.tr('templates_file'))
         self.template_browse_button.configure(text=self.tr('browse'))
+        self.detect_button.configure(text=self.tr('detect'))
         self.offset_label.configure(text=self.tr('sample_offset'))
         self.time_offset_label.configure(text=self.tr('time_offset'))
         self.keep_setup_check.configure(text=self.tr('keep_setup'))
@@ -220,6 +223,7 @@ class ConverterApp(tk.Tk):
         state = 'normal' if enabled else 'disabled'
         for widget in (self.add_button, self.remove_button, self.clear_button,
                        self.browse_button, self.template_browse_button,
+                       self.detect_button,
                        self.template_entry, self.offset_entry, self.time_offset_entry,
                        self.keep_setup_check, self.convert_button, self.language_combo):
             widget.configure(state=state)
@@ -249,6 +253,26 @@ class ConverterApp(tk.Tk):
         options = (template_path, offset, time_offset, self.keep_setup.get())
         threading.Thread(target=self._convert_files,
                          args=(list(self.files), output_dir, options), daemon=True).start()
+
+    def start_detection(self):
+        if self.running:
+            return
+        if not self.files:
+            messagebox.showwarning(self.tr('no_files_title'), self.tr('no_files_message'))
+            return
+        template_path = self.template_path.get().strip() or None
+        self.running = True
+        self._set_enabled(False)
+        self.status.set(self.tr('detecting'))
+        threading.Thread(target=self._detect_file,
+                         args=(self.files[0], template_path), daemon=True).start()
+
+    def _detect_file(self, input_path, template_path):
+        try:
+            offset, time_offset = detect_parameters(input_path, template_path)
+            self.messages.put(('detected', offset, time_offset))
+        except Exception as exc:
+            self.messages.put(('detect_error', exc))
 
     def _convert_files(self, files, output_dir, options):
         results = []
@@ -288,6 +312,18 @@ class ConverterApp(tk.Tk):
                     self.progress.configure(value=overall * 100)
                     self.status.set(self.tr('progress', index=index, total=total,
                                             name=name, percent=f'{overall:.0%}'))
+                elif message[0] == 'detected':
+                    _, offset, time_offset = message
+                    self.offset.set(str(offset))
+                    self.time_offset.set(f'{time_offset:.6f}')
+                    self.running = False
+                    self._set_enabled(True)
+                    self.status.set(self.tr('detected_result', offset=offset,
+                                            time_offset=f'{time_offset:.6f}'))
+                elif message[0] == 'detect_error':
+                    self.running = False
+                    self._set_enabled(True)
+                    messagebox.showerror(self.tr('detect_error_title'), str(message[1]))
                 else:
                     self._finish(message[1])
         except queue.Empty:
