@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Windows-friendly standalone Yamaha Disklavier WAV to MIDI converter."""
 import argparse
+from collections import defaultdict
 import wave
 from pathlib import Path
 
@@ -20,6 +21,18 @@ def normalize_message(msg):
         msg = mido.Message('note_off', channel=msg.channel,
                            note=msg.note, velocity=64)
     return msg
+
+
+def is_note_off(msg):
+    """Return whether a MIDI message releases a note.
+
+    Yamaha data may encode a release either as an explicit ``note_off`` or
+    as a ``note_on`` with velocity zero.  Candidate selection happens before
+    messages are normalized, so both forms must be recognized here.
+    """
+    return msg.type == 'note_off' or (
+        msg.type == 'note_on' and msg.velocity == 0
+    )
 
 
 def split_burst(s):
@@ -109,16 +122,19 @@ def midi_candidates(qs):
     return out
 
 
-def choose_candidate(events, index, options):
+def choose_candidate(events, index, options, active_notes=None):
     if len(options) <= 1:
         return options[0] if options else None
+    active_notes = active_notes or {}
     scores = []
     for msg in options:
         score = 0
-        if msg.type == 'note_on' and msg.velocity:
+        if is_note_off(msg):
+            score = 10 * active_notes.get((msg.channel, msg.note), 0)
+        elif msg.type == 'note_on' and msg.velocity:
             for future in events[index + 1:index + 21]:
                 for candidate in future[1]:
-                    if candidate.type == 'note_off' and candidate.note == msg.note:
+                    if is_note_off(candidate) and candidate.note == msg.note:
                         score = 3
                         break
                     if (candidate.type == 'note_on' and candidate.velocity and
@@ -262,9 +278,10 @@ def convert_file(input_path, output_path, template_path=None, offset=1400,
     track.append(mido.MetaMessage('set_tempo', tempo=500000, time=0))
     previous = None
     count = 0
+    active_notes = defaultdict(int)
     total_events = max(1, len(events))
     for index, (state, options) in enumerate(events):
-        msg = choose_candidate(events, index, options)
+        msg = choose_candidate(events, index, options, active_notes)
         if msg is None:
             continue
         if not keep_setup and msg.type in ('program_change', 'pitchwheel'):
@@ -276,6 +293,12 @@ def convert_file(input_path, output_path, template_path=None, offset=1400,
         msg.time = int(round(mido.second2tick(
             max(0, now - (previous or 0)), 480, 500000)))
         track.append(msg)
+        if hasattr(msg, 'note'):
+            key = (msg.channel, msg.note)
+            if msg.type == 'note_on' and msg.velocity:
+                active_notes[key] += 1
+            elif is_note_off(msg) and active_notes[key]:
+                active_notes[key] -= 1
         previous = now
         count += 1
         report(0.8 + 0.2 * (index + 1) / total_events)
