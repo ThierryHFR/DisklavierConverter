@@ -14,6 +14,7 @@
   "sample_offset": "Sample offset",
   "time_offset": "Time offset (seconds)",
   "keep_setup": "Keep Yamaha setup messages",
+  "auto_detect": "Detect parameters automatically before each conversion",
   "browse": "Browse…",
   "convert": "Convert to MIDI",
   "select_files": "Select Disklavier files",

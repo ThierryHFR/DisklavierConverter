@@ -14,6 +14,7 @@
   "sample_offset": "Offset dei campioni",
   "time_offset": "Offset temporale (secondi)",
   "keep_setup": "Conserva i messaggi di configurazione Yamaha",
+  "auto_detect": "Rileva automaticamente i parametri prima di ogni conversione",
   "browse": "Sfoglia…",
   "convert": "Converti in MIDI",
   "select_files": "Seleziona file Disklavier",
