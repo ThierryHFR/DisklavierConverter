@@ -105,10 +105,13 @@ command-line converter:
 Leaving the templates field empty uses the bundled template. The offset fields
 must contain a valid integer and number respectively.
 
-Use **Detect automatically** before converting a new WAV. The detector finds
-the 14-sample phase alignment and sets the time offset so the first musical
-group starts at zero. An absolute time offset copied from a reference MIDI
-cannot be recovered from the WAV alone.
+The graphical application automatically detects the parameters separately for
+each WAV immediately before conversion. The **Detect automatically** button is
+also available when you want to detect parameters manually before converting.
+The detector finds the 14-sample phase alignment and sets the time offset so
+the first musical group starts at zero. An absolute time offset copied from a
+reference MIDI cannot be recovered from the WAV alone. Automatic detection can
+be disabled in the advanced options to use the manually entered values.
 
 The command-line converter remains available for scripted use:
 
