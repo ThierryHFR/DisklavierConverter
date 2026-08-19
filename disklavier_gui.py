@@ -53,6 +53,7 @@ class ConverterApp(tk.Tk):
         self.template_path = tk.StringVar()
         self.offset = tk.StringVar(value='1400')
         self.time_offset = tk.StringVar(value='-1.177')
+        self.auto_detect = tk.BooleanVar(value=True)
         self.keep_setup = tk.BooleanVar(value=False)
         self.status = tk.StringVar()
         self._build_widgets()
@@ -138,6 +139,10 @@ class ConverterApp(tk.Tk):
             self.options_frame, variable=self.keep_setup)
         self.keep_setup_check.grid(row=3, column=0, columnspan=3, sticky='w', padx=8,
                                    pady=(4, 8))
+        self.auto_detect_check = ttk.Checkbutton(
+            self.options_frame, variable=self.auto_detect)
+        self.auto_detect_check.grid(row=4, column=0, columnspan=3, sticky='w', padx=8,
+                                    pady=(0, 8))
 
         self.progress = ttk.Progressbar(frame, mode='determinate')
         self.progress.grid(row=7, column=0, columnspan=2, sticky='ew')
@@ -177,6 +182,7 @@ class ConverterApp(tk.Tk):
         self.offset_label.configure(text=self.tr('sample_offset'))
         self.time_offset_label.configure(text=self.tr('time_offset'))
         self.keep_setup_check.configure(text=self.tr('keep_setup'))
+        self.auto_detect_check.configure(text=self.tr('auto_detect'))
         self.convert_button.configure(text=self.tr('convert'))
         self._update_status()
 
@@ -225,7 +231,8 @@ class ConverterApp(tk.Tk):
                        self.browse_button, self.template_browse_button,
                        self.detect_button,
                        self.template_entry, self.offset_entry, self.time_offset_entry,
-                       self.keep_setup_check, self.convert_button, self.language_combo):
+                       self.keep_setup_check, self.auto_detect_check,
+                       self.convert_button, self.language_combo):
             widget.configure(state=state)
 
     def start_conversion(self):
@@ -250,7 +257,8 @@ class ConverterApp(tk.Tk):
         self.running = True
         self._set_enabled(False)
         self.progress.configure(maximum=100, value=0)
-        options = (template_path, offset, time_offset, self.keep_setup.get())
+        options = (template_path, offset, time_offset, self.auto_detect.get(),
+                   self.keep_setup.get())
         threading.Thread(target=self._convert_files,
                          args=(list(self.files), output_dir, options), daemon=True).start()
 
@@ -284,7 +292,7 @@ class ConverterApp(tk.Tk):
             self.messages.put(('done', results))
             return
         total_files = len(files)
-        template_path, offset, time_offset, keep_setup = options
+        template_path, offset, time_offset, auto_detect, keep_setup = options
         for index, input_path in enumerate(files, 1):
             output_path = output_dir / (Path(input_path).stem + '.mid')
             try:
@@ -292,9 +300,12 @@ class ConverterApp(tk.Tk):
                     overall = ((file_index - 1) + value) / total_files
                     self.messages.put(('progress', overall, file_index, total_files, file_name))
 
+                file_offset, file_time_offset = offset, time_offset
+                if auto_detect:
+                    file_offset, file_time_offset = detect_parameters(input_path, template_path)
                 count = convert_file(input_path, output_path,
-                                     template_path=template_path, offset=offset,
-                                     time_offset=time_offset, keep_setup=keep_setup,
+                                     template_path=template_path, offset=file_offset,
+                                     time_offset=file_time_offset, keep_setup=keep_setup,
                                      progress_callback=report_file_progress)
                 results.append((input_path, output_path, count, None))
             except Exception as exc:  # Continue with the remaining selected files.
