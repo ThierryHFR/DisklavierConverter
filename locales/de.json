@@ -14,6 +14,7 @@
   "sample_offset": "Sample-Versatz",
   "time_offset": "Zeitversatz (Sekunden)",
   "keep_setup": "Yamaha-Einrichtungsnachrichten beibehalten",
+  "auto_detect": "Parameter vor jeder Konvertierung automatisch erkennen",
   "browse": "Durchsuchen…",
   "convert": "In MIDI konvertieren",
   "select_files": "Disklavier-Dateien auswählen",
