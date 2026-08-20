@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 """Windows-friendly standalone Yamaha Disklavier WAV to MIDI converter."""
 import argparse
-from collections import defaultdict
 import wave
 from pathlib import Path
 
@@ -11,6 +10,7 @@ import numpy as np
 PERM = np.array([3, 4, 12, 11, 2, 5, 13, 10, 0, 7, 15, 8, 1, 6, 14, 9])
 INV = np.argsort(PERM)
 STATUS = set('89abcdef')
+BEAM_WIDTH = 50
 
 
 def normalize_message(msg):
@@ -122,28 +122,56 @@ def midi_candidates(qs):
     return out
 
 
-def choose_candidate(events, index, options, active_notes=None):
-    if len(options) <= 1:
-        return options[0] if options else None
-    active_notes = active_notes or {}
-    scores = []
-    for msg in options:
-        score = 0
-        if is_note_off(msg):
-            score = 10 * active_notes.get((msg.channel, msg.note), 0)
-        elif msg.type == 'note_on' and msg.velocity:
-            for future in events[index + 1:index + 21]:
-                for candidate in future[1]:
-                    if is_note_off(candidate) and candidate.note == msg.note:
-                        score = 3
-                        break
-                    if (candidate.type == 'note_on' and candidate.velocity and
-                            candidate.note == msg.note):
-                        break
-                if score:
-                    break
-        scores.append(score)
-    return options[scores.index(max(scores))]
+def resolve_candidates(events):
+    """Choose MIDI candidates while keeping note-on/off state coherent.
+
+    Some five-nibble Yamaha messages have two valid MIDI interpretations.
+    Choosing each one independently can create a spurious note-on whose
+    release is then assigned to another note.  Keep a small set of the best
+    active-note states and resolve the whole stream instead.
+    """
+    # (cost, active-note counts, selected messages)
+    beam = [(0, (), ())]
+    for _, options in events:
+        expanded = []
+        for cost, active_tuple, selected in beam:
+            active = dict(active_tuple)
+            for msg in options:
+                next_active = active.copy()
+                next_cost = cost
+                if hasattr(msg, 'note'):
+                    note = (msg.channel, msg.note)
+                    if msg.type == 'note_on' and msg.velocity:
+                        next_active[note] = next_active.get(note, 0) + 1
+                    elif is_note_off(msg):
+                        if next_active.get(note, 0):
+                            next_active[note] -= 1
+                        else:
+                            next_cost += 100
+                expanded.append((
+                    next_cost,
+                    tuple(sorted((key, value) for key, value in next_active.items()
+                                 if value)),
+                    selected + (msg,),
+                ))
+
+        expanded.sort(key=lambda item: item[0] + 100 * sum(
+            value for _, value in item[1]
+        ))
+        beam = []
+        seen_states = set()
+        for item in expanded:
+            state = item[1]
+            if state in seen_states:
+                continue
+            seen_states.add(state)
+            beam.append(item)
+            if len(beam) >= BEAM_WIDTH:
+                break
+
+    return min(beam, key=lambda item: item[0] + 100 * sum(
+        value for _, value in item[1]
+    ))[2]
 
 
 def decode(path, template_path, offset, period, progress_callback=None):
@@ -276,12 +304,11 @@ def convert_file(input_path, output_path, template_path=None, offset=1400,
     track = mido.MidiTrack()
     mid.tracks.append(track)
     track.append(mido.MetaMessage('set_tempo', tempo=500000, time=0))
+    selected = resolve_candidates(events)
     previous = None
     count = 0
-    active_notes = defaultdict(int)
     total_events = max(1, len(events))
-    for index, (state, options) in enumerate(events):
-        msg = choose_candidate(events, index, options, active_notes)
+    for index, ((state, _options), msg) in enumerate(zip(events, selected)):
         if msg is None:
             continue
         if not keep_setup and msg.type in ('program_change', 'pitchwheel'):
@@ -293,12 +320,6 @@ def convert_file(input_path, output_path, template_path=None, offset=1400,
         msg.time = int(round(mido.second2tick(
             max(0, now - (previous or 0)), 480, 500000)))
         track.append(msg)
-        if hasattr(msg, 'note'):
-            key = (msg.channel, msg.note)
-            if msg.type == 'note_on' and msg.velocity:
-                active_notes[key] += 1
-            elif is_note_off(msg) and active_notes[key]:
-                active_notes[key] -= 1
         previous = now
         count += 1
         report(0.8 + 0.2 * (index + 1) / total_events)
